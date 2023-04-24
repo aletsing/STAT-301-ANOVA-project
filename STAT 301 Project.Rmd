@@ -1,0 +1,105 @@
+---
+title: "STAT 301 Project"
+author: "Ann Letsinger"
+date: "2023-04-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(car)
+library(readxl)
+library(dplyr)
+library(nlme)
+library(multcomp)
+  
+```
+
+
+```{r}
+# Question 1: Effects of county on category
+
+WasteData1<- read_xlsx("Wastedata1.xlsx",sheet = 1,col_names = TRUE, trim_ws = TRUE)
+view(WasteData1)
+Waste<- WasteData1 %>%
+  filter(County==c("Hennepin","Ramsey","Anoka")) %>%
+  filter(Category==c("Paper","Metal","Organic"))
+Waste
+
+Waste$Category <-as.factor(Waste$Category)
+Waste$County <- as.factor(Waste$County)
+
+model1<-lm(`Res Tons`~County+Category+County*Category, data = Waste)
+Anova(model1, type = "II")
+
+
+#interaction analysis
+paper <- Waste %>%
+  filter(Category == "Paper")
+paperModel <- aov(`Res Tons`~County, data = paper)
+summary(paperModel)
+
+metal <- Waste %>%
+  filter(Category == "Metal")
+metalModel <- aov(`Res Tons`~County, data = metal)
+summary(metalModel)
+
+organic <- Waste %>%
+  filter(Category == "Organic")
+organicModel<- aov(`Res Tons`~County, data = organic)
+
+# Calculate avg tons per county and category, then graph
+Waste %>%
+  group_by(County)%>%
+  summarize(aveWaste=mean(`Res Tons`)) %>%
+  ggplot(aes(x = County, y = aveWaste)) + geom_bar(stat = "identity", fill = "darkblue")+labs(title="Mean Tons of Recycled Waste Among Counties", x = "Counties", y = "Mean Recycled Waste (Tons)")
+
+Waste %>%
+  group_by(Category) %>%
+  summarize(aveWaste = mean(`Res Tons`)) %>%
+  ggplot(aes(x = Category, y = aveWaste)) + geom_bar(stat = "identity", fill = "darkgreen")+labs(title="Mean Tons of Recycled Waste Among Categories", x = "Category", y = "Mean Recycled Waste (Tons)")
+
+WasteData1 %>%
+  filter(County == c("Hennepin","Ramsey","Anoka")) %>%
+  group_by(Category) %>%
+  summarize(total=n())
+  
+```
+
+
+```{r}
+#Question 2:
+WasteData2<- read_xlsx("Wastedata2.xlsx",sheet = 1, col_names = TRUE, trim_ws = TRUE)
+WasteData2$Year <- as.factor(WasteData2$Year)
+WasteData2
+Waste2 <- WasteData2 %>%
+  dplyr::select(Year, Landfilled, WTE) %>%
+  filter(Year== c(1991,2017)) %>%
+  gather(key = wasteType, value = wastePerTon, "Landfilled", "WTE")
+Waste2
+
+#create model
+model2<-aov(wastePerTon~Year + wasteType + Year * wasteType, data=Waste2)
+summary(model2)
+
+#test where significance lies
+TukeyHSD(model2)
+
+#Graph 
+Waste2 %>%
+  group_by(wasteType) %>%
+  summarize(avgWaste = mean(wastePerTon), se=sd(wastePerTon)/sqrt(length(wastePerTon)), tstar= qt(1-0.05/2,length(wastePerTon)-1)) %>%
+  ggplot(aes(x = wasteType, y = avgWaste)) + geom_point() + geom_errorbar(aes(ymin = avgWaste - tstar * se, ymax = avgWaste + tstar * se)) + labs(title = "Mean Tons of Landfilled and WTE Waste")
+
+Waste2 %>%
+  group_by(Year) %>%
+  summarize(avgWaste = mean(wastePerTon), se=sd(wastePerTon)/sqrt(length(wastePerTon)), tstar= qt(1-0.05/2,length(wastePerTon)-1)) %>%
+  ggplot(aes(x = Year, y = avgWaste)) + geom_point() + geom_errorbar(aes(ymin = avgWaste - tstar * se, ymax = avgWaste + tstar * se)) + labs(title = "Mean Tons of Waste in 1991 and 2017")
+
+```
+
